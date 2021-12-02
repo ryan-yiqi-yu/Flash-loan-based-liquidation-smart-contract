@@ -132,11 +132,29 @@ interface IUniswapV2Pair {
 
 // ----------------------IMPLEMENTATION------------------------------
 
+
+// First ensure the loan is liquidatable: a health factor < 1
+//1. Initiate a flash loan and get some currency 
+//2. Pay off some debt, liquidating some collatrel of another currency. You get paid this liquidated currency
+//3. Swap that currency for one of the original currencies in the flash loan pool
+//4. Pay back the flash loan
+
 contract LiquidationOperator is IUniswapV2Callee {
     uint8 public constant health_factor_decimals = 18;
 
     // TODO: define constants used in the contract including ERC-20 tokens, Uniswap Pairs, Aave lending pools, etc. */
     //    *** Your code here ***
+    address target_address = 0x59CE4a2AC5bC3f5F225439B2993b86B42f6d3e9F;
+    address me = address(this);
+    address USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+    address WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
+    address WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address ETH_USDT = 0x0d4a11d5EEaaC28EC3F61d100daF4d40471f1852;
+    address FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+
+
+
+
     // END TODO
 
     // some helper function, it is totally fine if you can finish the lab without using these function
@@ -187,6 +205,10 @@ contract LiquidationOperator is IUniswapV2Callee {
     //   *** Your code here ***
     // END TODO
 
+    receive() external payable {
+            // React to receiving ether
+        }
+
     // required by the testing script, entry for your liquidation call
     function operate() external {
         // TODO: implement your liquidation logic
@@ -208,6 +230,19 @@ contract LiquidationOperator is IUniswapV2Callee {
         //    *** Your code here ***
 
         // END TODO
+
+        bytes memory data = abi.encode("flash loan");
+
+        address pair = IUniswapV2Factory(FACTORY).getPair(WETH, USDT);
+
+        ( , , , , , uint256 health) = ILendingPool(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9).getUserAccountData(target_address);
+        require(health < 10**health_factor_decimals * uint256(1), "Must be liquidatable.");
+
+        IUniswapV2Pair(pair).swap(0, 2916378221684, me, data);
+        uint256 my_eth = IERC20(WETH).balanceOf(me);
+        IWETH(WETH).withdraw(my_eth);
+        msg.sender.call{value: my_eth}("");
+
     }
 
     // required by the swap
@@ -232,5 +267,44 @@ contract LiquidationOperator is IUniswapV2Callee {
         //    *** Your code here ***
         
         // END TODO
+
+        
+
+        console.log("A");
+        address pair = IUniswapV2Factory(FACTORY).getPair(WETH, USDT);
+        (uint112 WETH_reserve, uint112 USDT_reserve, ) = IUniswapV2Pair(pair).getReserves();
+        uint256 payback = getAmountIn(amount1, WETH_reserve, USDT_reserve);
+        console.log("B");
+        //do stuff here
+        IERC20(USDT).approve(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9, amount1);
+        ILendingPool(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9).liquidationCall(WBTC, USDT, target_address, amount1, false);
+        console.log("C");
+        address wbtc_eth_pair = IUniswapV2Factory(FACTORY).getPair(WBTC, WETH);
+        console.log("CCD");
+        uint256 my_btc = IERC20(WBTC).balanceOf(me);
+        console.log("CCCD");
+        console.log(my_btc);
+        (uint112 wbtc_reserve, uint112 weth_reserve, ) = IUniswapV2Pair(wbtc_eth_pair).getReserves();
+        console.log("CCCCD");
+        uint256 amountout = getAmountOut(my_btc, wbtc_reserve, weth_reserve);
+        console.log("CD");
+        IERC20(WBTC).approve(wbtc_eth_pair, my_btc);
+        IERC20(WBTC).transfer(wbtc_eth_pair, my_btc);
+        console.log("D");
+        console.log(amountout);
+        IUniswapV2Pair(wbtc_eth_pair).swap(0, amountout, me, "");
+        console.log("H");
+        uint256 my_eth = IERC20(WETH).balanceOf(me);
+        console.log("i");
+        //IWETH(WETH).withdraw(my_eth);
+        console.log("j");
+        //msg.sender.call{value: my_eth}("");
+        console.log("E");
+        IERC20(WETH).approve(pair, payback);
+        console.log("F");
+        IERC20(WETH).transfer(pair, payback);
+        console.log("G");
+        
+        
     }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "hardhat-project",
+  "name": "defi_lab2",
   "scripts": {
     "test": "npx hardhat test"
   },
@@ -9,6 +9,22 @@
     "chai": "^4.3.4",
     "ethereum-waffle": "^3.4.0",
     "ethers": "^5.4.5",
-    "hardhat": "^2.6.1"
-  }
+    "hardhat": "^2.6.8"
+  },
+  "description": "## Exercise In this exercise, you are expected to implement a smart contract that performs a flash loan based liquidation.",
+  "version": "1.0.0",
+  "main": "hardhat.config.js",
+  "directories": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ryan-yiqi-yu/DeFi-Lab2.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ryan-yiqi-yu/DeFi-Lab2/issues"
+  },
+  "homepage": "https://github.com/ryan-yiqi-yu/DeFi-Lab2#readme"
 }
