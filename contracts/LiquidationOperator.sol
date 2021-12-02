@@ -64,7 +64,7 @@ interface IERC20 {
      * If this function is called again it overwrites the current allowance with _value.
      * Lets msg.sender set their allowance for a spender.
      **/
-    function approve(address spender, uint256 value) external; // return type is deleted to be compatible with USDT
+    function approve(address spender, uint256 value) external; // return type is deleted to be compatible with usdt_address
 
     /**
      * Transfers _value amount of tokens to address _to, and MUST fire the Transfer event.
@@ -132,29 +132,19 @@ interface IUniswapV2Pair {
 
 // ----------------------IMPLEMENTATION------------------------------
 
-
-// First ensure the loan is liquidatable: a health factor < 1
-//1. Initiate a flash loan and get some currency 
-//2. Pay off some debt, liquidating some collatrel of another currency. You get paid this liquidated currency
-//3. Swap that currency for one of the original currencies in the flash loan pool
-//4. Pay back the flash loan
-
 contract LiquidationOperator is IUniswapV2Callee {
     uint8 public constant health_factor_decimals = 18;
 
     // TODO: define constants used in the contract including ERC-20 tokens, Uniswap Pairs, Aave lending pools, etc. */
     //    *** Your code here ***
-    address target_address = 0x59CE4a2AC5bC3f5F225439B2993b86B42f6d3e9F;
+    address liquidate_address = 0x59CE4a2AC5bC3f5F225439B2993b86B42f6d3e9F;
     address me = address(this);
-    address USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
-    address WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
-    address WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address ETH_USDT = 0x0d4a11d5EEaaC28EC3F61d100daF4d40471f1852;
-    address FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
-
-
-
-
+    address usdt_address = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+    address wbtc_address = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
+    address weth_address = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address _factory = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+    address lending_pool = 0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9;
+    uint256 flashloan_amount = 1745378221684;
     // END TODO
 
     // some helper function, it is totally fine if you can finish the lab without using these function
@@ -201,12 +191,12 @@ contract LiquidationOperator is IUniswapV2Callee {
         // END TODO
     }
 
-    // TODO: add a `receive` function so that you can withdraw your WETH
+    // TODO: add a `receive` function so that you can withdraw your weth_address
     //   *** Your code here ***
     // END TODO
 
     receive() external payable {
-            // React to receiving ether
+            // Nothing
         }
 
     // required by the testing script, entry for your liquidation call
@@ -221,8 +211,8 @@ contract LiquidationOperator is IUniswapV2Callee {
 
         // 2. call flash swap to liquidate the target user
         // based on https://etherscan.io/tx/0xac7df37a43fab1b130318bbb761861b8357650db2e2c6493b73d6da3d9581077
-        // we know that the target user borrowed USDT with WBTC as collateral
-        // we should borrow USDT, liquidate the target user and get the WBTC, then swap WBTC to repay uniswap
+        // we know that the target user borrowed usdt_address with wbtc_address as collateral
+        // we should borrow usdt_address, liquidate the target user and get the wbtc_address, then swap wbtc_address to repay uniswap
         // (please feel free to develop other workflows as long as they liquidate the target user successfully)
         //    *** Your code here ***
 
@@ -231,18 +221,14 @@ contract LiquidationOperator is IUniswapV2Callee {
 
         // END TODO
 
-        bytes memory data = abi.encode("flash loan");
-
-        address pair = IUniswapV2Factory(FACTORY).getPair(WETH, USDT);
-
-        ( , , , , , uint256 health) = ILendingPool(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9).getUserAccountData(target_address);
-        require(health < 10**health_factor_decimals * uint256(1), "Must be liquidatable.");
-
-        IUniswapV2Pair(pair).swap(0, 2916378221684, me, data);
-        uint256 my_eth = IERC20(WETH).balanceOf(me);
-        IWETH(WETH).withdraw(my_eth);
-        msg.sender.call{value: my_eth}("");
-
+        bytes memory data = abi.encode("Non empty: flash loan");
+        address weth_usdt_pair = IUniswapV2Factory(_factory).getPair(weth_address, usdt_address);
+        ( , , , , , uint256 health_factor) = ILendingPool(lending_pool).getUserAccountData(liquidate_address);
+        require(health_factor < uint256(10**health_factor_decimals), "Liquidatable error.");
+        IUniswapV2Pair(weth_usdt_pair).swap(0, flashloan_amount, me, data);
+        uint256 eth_balance = IERC20(weth_address).balanceOf(me);
+        IWETH(weth_address).withdraw(eth_balance);
+        msg.sender.call{value: eth_balance}("");
     }
 
     // required by the swap
@@ -260,7 +246,7 @@ contract LiquidationOperator is IUniswapV2Callee {
         // 2.1 liquidate the target user
         //    *** Your code here ***
 
-        // 2.2 swap WBTC for other things or repay directly
+        // 2.2 swap wbtc_address for other things or repay directly
         //    *** Your code here ***
 
         // 2.3 repay
@@ -270,41 +256,24 @@ contract LiquidationOperator is IUniswapV2Callee {
 
         
 
-        console.log("A");
-        address pair = IUniswapV2Factory(FACTORY).getPair(WETH, USDT);
-        (uint112 WETH_reserve, uint112 USDT_reserve, ) = IUniswapV2Pair(pair).getReserves();
-        uint256 payback = getAmountIn(amount1, WETH_reserve, USDT_reserve);
-        console.log("B");
+        address weth_usdt_pair = IUniswapV2Factory(_factory).getPair(weth_address, usdt_address);
+        (uint112 weth_reserve, uint112 usdt_reserve, ) = IUniswapV2Pair(weth_usdt_pair).getReserves();
+        uint256 flashloan_owe = getAmountIn(amount1, weth_reserve, usdt_reserve);
         //do stuff here
-        IERC20(USDT).approve(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9, amount1);
-        ILendingPool(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9).liquidationCall(WBTC, USDT, target_address, amount1, false);
-        console.log("C");
-        address wbtc_eth_pair = IUniswapV2Factory(FACTORY).getPair(WBTC, WETH);
-        console.log("CCD");
-        uint256 my_btc = IERC20(WBTC).balanceOf(me);
-        console.log("CCCD");
-        console.log(my_btc);
-        (uint112 wbtc_reserve, uint112 weth_reserve, ) = IUniswapV2Pair(wbtc_eth_pair).getReserves();
-        console.log("CCCCD");
-        uint256 amountout = getAmountOut(my_btc, wbtc_reserve, weth_reserve);
-        console.log("CD");
-        IERC20(WBTC).approve(wbtc_eth_pair, my_btc);
-        IERC20(WBTC).transfer(wbtc_eth_pair, my_btc);
-        console.log("D");
-        console.log(amountout);
+        IERC20(usdt_address).approve(lending_pool, amount1);
+        ILendingPool(lending_pool).liquidationCall(wbtc_address, usdt_address, liquidate_address, amount1, false);
+        address wbtc_eth_pair = IUniswapV2Factory(_factory).getPair(wbtc_address, weth_address);
+        uint256 btc_balance = IERC20(wbtc_address).balanceOf(me);
+        (uint112 wbtc_reserve, uint112 weth_reserve2, ) = IUniswapV2Pair(wbtc_eth_pair).getReserves();
+        uint256 amountout = getAmountOut(btc_balance, wbtc_reserve, weth_reserve2);
+        IERC20(wbtc_address).approve(wbtc_eth_pair, btc_balance);
+        IERC20(wbtc_address).transfer(wbtc_eth_pair, btc_balance);
         IUniswapV2Pair(wbtc_eth_pair).swap(0, amountout, me, "");
-        console.log("H");
-        uint256 my_eth = IERC20(WETH).balanceOf(me);
-        console.log("i");
-        //IWETH(WETH).withdraw(my_eth);
-        console.log("j");
-        //msg.sender.call{value: my_eth}("");
-        console.log("E");
-        IERC20(WETH).approve(pair, payback);
-        console.log("F");
-        IERC20(WETH).transfer(pair, payback);
-        console.log("G");
-        
+        //uint256 eth_balance = IERC20(weth_address).balanceOf(me);
+        //IWETH(weth_address).withdraw(eth_balance);
+        //msg.sender.call{value: eth_balance}("");
+        IERC20(weth_address).approve(weth_usdt_pair, flashloan_owe);
+        IERC20(weth_address).transfer(weth_usdt_pair, flashloan_owe);
         
     }
 }
