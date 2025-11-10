@@ -1,4 +1,4 @@
-# Hands-on Exercise: Flash Loan based Liquidation
+# Flash Loan Based Liquidation
 
 This repo implements a smart contract that performs a flash loan based liquidation.
 
